@@ -7,6 +7,7 @@ import { winstonConfig } from './config/winston.config.js';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LineModule } from './line/line.module.js';
 import { AccountingModule } from './accounting/accounting.module.js';
+import { WebModule } from './web/web.module.js';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AccountingModule } from './accounting/accounting.module.js';
     }),
     LineModule,
     AccountingModule,
+    WebModule,
   ],
   controllers: [AppController],
   providers: [AppService],

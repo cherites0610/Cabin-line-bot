@@ -152,6 +152,24 @@ export class AccountingService {
     return await this.transactionRepo.save(transaction);
   }
 
+  async deleteLastTransaction(groupId: string): Promise<Transaction | null> {
+    // 1. 找出該群組「最新建立」的一筆資料
+    const lastTransaction = await this.transactionRepo.findOne({
+      where: { groupId },
+      order: { createdAt: 'DESC' }, // 依照建立時間倒序
+    });
+
+    if (!lastTransaction) {
+      return null;
+    }
+
+    // 2. 刪除它
+    await this.transactionRepo.remove(lastTransaction);
+
+    // 3. 回傳被刪除的資料 (讓前端顯示給使用者確認)
+    return lastTransaction;
+  }
+
   async getMonthlyStats(groupId: string) {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);

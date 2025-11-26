@@ -41,16 +41,22 @@ export class LineService {
 
     if (!groupId) return;
 
+    // 1. 優先處理指令 (查帳、說明、刪除、叫我...)
+    // 這些指令可能不包含數字，所以要先跑
     const isCommandHandled = await this.dispatchCommand(
       text,
       groupId,
       userId,
       replyToken,
     );
+    if (isCommandHandled) return;
 
-    if (!isCommandHandled) {
-      await this.handleAiAccounting(text, groupId, userId, replyToken);
+    if (!/\d/.test(text)) {
+      return;
     }
+
+    // 3. 通過過濾，進入 AI 分析
+    await this.handleAiAccounting(text, groupId, userId, replyToken);
   }
 
   private async dispatchCommand(
@@ -62,6 +68,8 @@ export class LineService {
     const commandMap: Record<string, () => Promise<void>> = {
       查帳: () => this.sendDashboard(replyToken, groupId),
       說明: () => this.sendHelpMessage(replyToken),
+      刪除: () => this.handleDeleteLast(replyToken, groupId),
+      刪除上一筆: () => this.handleDeleteLast(replyToken, groupId),
     };
 
     if (text.startsWith('叫我')) {
@@ -134,6 +142,24 @@ export class LineService {
     await this.client.replyMessage(replyToken, {
       type: 'text',
       text: `✅ 記帳成功！\n\n${replyText}`,
+    });
+  }
+
+  private async handleDeleteLast(replyToken: string, groupId: string) {
+    const deletedTx =
+      await this.accountingService.deleteLastTransaction(groupId);
+
+    if (!deletedTx) {
+      await this.client.replyMessage(replyToken, {
+        type: 'text',
+        text: '⚠️ 目前沒有任何記帳紀錄可以刪除。',
+      });
+      return;
+    }
+
+    await this.client.replyMessage(replyToken, {
+      type: 'text',
+      text: `🗑️ 已刪除上一筆紀錄：\n\n${deletedTx.item} $${deletedTx.amount}\n(${deletedTx.payerName} 付款)`,
     });
   }
 
@@ -221,6 +247,19 @@ export class LineService {
                     color: '#FF334B',
                   },
                 ],
+              },
+              { type: 'separator', margin: 'lg' },
+              {
+                type: 'button',
+                style: 'link',
+                height: 'sm',
+                action: {
+                  type: 'uri',
+                  label: '查看完整歷史紀錄 🔗',
+                  // 注意：這裡的網域要換成你實際部署的 Domain
+                  uri: `${process.env.APP_DOMAIN}/web/history/${groupId}`,
+                },
+                margin: 'sm',
               },
             ],
           },

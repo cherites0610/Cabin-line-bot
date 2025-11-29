@@ -8,6 +8,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { LineModule } from './line/line.module.js';
 import { AccountingModule } from './accounting/accounting.module.js';
 import { WebModule } from './web/web.module.js';
+import { ApiModule } from './api/api.module.js';
+import { AuthModule } from './auth/auth.module.js';
 
 @Module({
   imports: [
@@ -33,6 +35,8 @@ import { WebModule } from './web/web.module.js';
     LineModule,
     AccountingModule,
     WebModule,
+    ApiModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

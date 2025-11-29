@@ -11,6 +11,9 @@ export class GroupConfig {
   @PrimaryColumn()
   groupId: string;
 
+  @Column({ nullable: true })
+  name: string;
+
   @Column('jsonb', {
     default: [
       '飲食',

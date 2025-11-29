@@ -9,6 +9,7 @@ import {
   AccountingEntry,
 } from './dto/accounting-result.dto.js';
 import { GroupMember } from './entities/group-member.entity.js';
+import { GroupSummary } from '../api/dto/user-profile.dto.js';
 
 @Injectable()
 export class AccountingService {
@@ -123,6 +124,77 @@ export class AccountingService {
       console.error('Gemini Error:', error);
       return { isAccounting: false, entries: [] };
     }
+  }
+
+  async setGroupName(groupId: string, name: string) {
+    let config = await this.groupConfigRepo.findOne({ where: { groupId } });
+    if (!config) {
+      config = this.groupConfigRepo.create({ groupId });
+    }
+    config.name = name;
+    return await this.groupConfigRepo.save(config);
+  }
+
+  async getGroupName(groupId: string): Promise<string> {
+    const config = await this.groupConfigRepo.findOne({ where: { groupId } });
+    return config?.name || '未命名群組';
+  }
+
+  // 安全檢查核心：確認使用者是否在該群組有資料 (GroupMember 或 Transaction)
+  async isUserInGroup(userId: string, groupId: string): Promise<boolean> {
+    const isMember = await this.groupMemberRepo.count({ where: { userId, groupId } });
+    if (isMember > 0) return true;
+
+    const hasTransaction = await this.transactionRepo.count({ where: { userId, groupId } });
+    return hasTransaction > 0;
+  }
+  
+  // 更新 getUserGroups 以回傳真實群組名
+  async getUserGroups(userId: string): Promise<GroupSummary[]> {
+    const transactionGroups = await this.transactionRepo
+      .createQueryBuilder('tx')
+      .select('tx.groupId', 'groupId')
+      .addSelect('MAX(tx.transactionDate)', 'lastDate')
+      .where('tx.userId = :userId', { userId })
+      .groupBy('tx.groupId')
+      .getRawMany();
+
+    const members = await this.groupMemberRepo.find({ where: { userId } });
+    const memberMap = new Map<string, string>();
+    members.forEach(m => memberMap.set(m.groupId, m.nickname));
+
+    // 預先撈取所有相關的 GroupConfig 以取得群組名
+    const allGroupIds = new Set([
+        ...transactionGroups.map(t => t.groupId), 
+        ...members.map(m => m.groupId)
+    ]);
+    
+    const groupConfigs = await this.groupConfigRepo.findByIds(Array.from(allGroupIds));
+    const nameMap = new Map<string, string>();
+    groupConfigs.forEach(c => nameMap.set(c.groupId, c.name));
+
+    const results: GroupSummary[] = transactionGroups.map(row => {
+      return {
+        groupId: row.groupId,
+        groupName: nameMap.get(row.groupId) || '未命名群組', // 新增回傳群組名
+        nickname: memberMap.get(row.groupId) || '我',
+        lastTransactionDate: row.lastDate ? new Date(row.lastDate) : undefined,
+      };
+    });
+
+    members.forEach(m => {
+      const exists = results.find(r => r.groupId === m.groupId);
+      if (!exists) {
+        results.push({
+          groupId: m.groupId,
+          groupName: nameMap.get(m.groupId) || '未命名群組',
+          nickname: m.nickname,
+          lastTransactionDate: undefined,
+        });
+      }
+    });
+
+    return results.sort((a, b) => (b.lastTransactionDate?.getTime() || 0) - (a.lastTransactionDate?.getTime() || 0));
   }
 
   async saveTransaction(

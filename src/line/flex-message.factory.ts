@@ -13,6 +13,8 @@ export class FlexMessageFactory {
       const icon = isExpense ? '💸' : '💰';
       const sign = isExpense ? '-' : '+';
 
+      const dateStr = new Date(t.transactionDate).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' });
+
       return {
         type: 'box',
         layout: 'vertical',
@@ -22,7 +24,7 @@ export class FlexMessageFactory {
             type: 'box',
             layout: 'horizontal',
             contents: [
-              { type: 'text', text: t.item, size: 'sm', color: '#555555', flex: 2, weight: 'bold' },
+              { type: 'text', text: `[${dateStr}] ${t.item}`, size: 'sm', color: '#555555', flex: 2, weight: 'bold' },
               { type: 'text', text: `${sign}${t.amount}`, size: 'sm', color: color, align: 'end', flex: 1, weight: 'bold' }
             ]
           },

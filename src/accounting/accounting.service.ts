@@ -56,6 +56,10 @@ export class AccountingService {
 
     const currentCategories = config.categories;
 
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][now.getDay()];
+
     const schema: Schema = {
       description: 'Accounting extraction with payer identification',
       type: SchemaType.OBJECT,
@@ -84,6 +88,7 @@ export class AccountingService {
                 type: SchemaType.STRING,
                 enum: ['expense', 'income'],
               },
+              date: { type: SchemaType.STRING, description: "Transaction date in YYYY-MM-DD format. Default to today if not specified." },
             },
             required: [
               'item',
@@ -92,6 +97,7 @@ export class AccountingService {
               'subCategory',
               'payer',
               'type',
+              'date',
             ],
           },
         },
@@ -108,12 +114,20 @@ export class AccountingService {
     });
 
     const prompt = `
-      Analyze the message: "${message}"
+      Current Reference Time: ${todayStr} (Today is ${dayOfWeek}).
+      Message: "${message}"
+      
       Rules:
       1. Extract spending details.
-      2. Identify WHO paid. If the text says "I paid" or implies the speaker, set payer='self'. If specific name used (e.g. "Mao paid"), set payer='Mao'.
-      3. Map 'parentCategory' ONLY from: ${currentCategories.join(', ')}.
-      4. If unrelated to accounting, isAccounting=false.
+      2. Identify WHO paid. If 'self' implied, use 'self'.
+      3. Map 'parentCategory' ONLY from: ${currentCategories.join(", ")}.
+      4. Extract Date:
+         - If user says "Yesterday", calculate date based on reference time.
+         - If user says "Last Friday", calculate the most recent past Friday.
+         - If specific date given (e.g., "11/05"), use current year.
+         - If NO date mentioned, use ${todayStr}.
+         - Format MUST be YYYY-MM-DD.
+      5. If unrelated, isAccounting=false.
     `;
 
     try {
@@ -197,15 +211,17 @@ export class AccountingService {
     return results.sort((a, b) => (b.lastTransactionDate?.getTime() || 0) - (a.lastTransactionDate?.getTime() || 0));
   }
 
-  async saveTransaction(
-    groupId: string,
-    userId: string,
-    entry: AccountingEntry,
-  ): Promise<Transaction> {
+  async saveTransaction(groupId: string, userId: string, entry: AccountingEntry): Promise<Transaction> {
     let finalPayerName = entry.payer;
+
     if (finalPayerName === 'self' || !finalPayerName) {
       finalPayerName = await this.getNickname(groupId, userId);
     }
+
+    // 4. 解析日期字串
+    // 為了避免時區問題導致日期偏移，我們將時間設為當天中午 12:00
+    const txDate = new Date(entry.date); 
+    txDate.setHours(12, 0, 0, 0);
 
     const transaction = this.transactionRepo.create({
       groupId,
@@ -215,12 +231,10 @@ export class AccountingService {
       amount: entry.amount,
       parentCategory: entry.parentCategory,
       subCategory: entry.subCategory,
-      type:
-        entry.type === 'income'
-          ? TransactionType.INCOME
-          : TransactionType.EXPENSE,
+      type: entry.type === 'income' ? TransactionType.INCOME : TransactionType.EXPENSE,
+      transactionDate: txDate, // 使用 AI 解析出的日期
     });
-
+    
     return await this.transactionRepo.save(transaction);
   }
 

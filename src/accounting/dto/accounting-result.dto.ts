@@ -5,6 +5,7 @@ export interface AccountingEntry {
   subCategory: string;
   payer: string;
   type: 'expense' | 'income';
+  date: string;
 }
 
 export interface AccountingAnalysisResult {

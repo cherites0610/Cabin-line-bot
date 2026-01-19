@@ -106,6 +106,16 @@ export class LineService {
       }
     }
 
+    if (text.startsWith('調整')) {
+      const nickName = text.replace('調整', '').trim()
+      if (nickName) {
+        this.logger.log(`調整付款人請求: "${nickName}" (群組: ${groupId})`)
+        await this.handleChangeAccountPeople(replyToken, groupId, nickName)
+        return true
+      }
+    }
+
+
     const handler = commandMap[text]
     if (handler) {
       await handler()
@@ -183,6 +193,20 @@ export class LineService {
     await this.client.replyMessage(replyToken, {
       type: 'text',
       text: `🗑️ 已刪除上一筆紀錄：\n\n${deletedTx.item} $${deletedTx.amount}\n(${deletedTx.payerName} 付款)`,
+    })
+  }
+
+  private async handleChangeAccountPeople(replyToken: string, groupId: string, nickName: string) {
+    const tx = await this.accountingService.changeLastTransaction(groupId, nickName)
+
+    if (!tx) {
+      this.logger.warn(`調整失敗: 群組 ${groupId} 沒有可調整的紀錄`)
+    }
+
+    this.logger.log(`成功調整交易: ID ${tx?.id} (群組: ${groupId})`)
+    await this.client.replyMessage(replyToken, {
+      type: 'text',
+      text: `✏️ 已調整上一筆紀錄：\n\n${tx?.item} $${tx?.amount}\n(${tx?.payerName} 付款)`,
     })
   }
 

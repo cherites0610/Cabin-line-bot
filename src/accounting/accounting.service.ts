@@ -251,6 +251,24 @@ export class AccountingService {
     return lastTransaction
   }
 
+  async changeLastTransaction(groupId: string, payerName: string) {
+    const lastTransaction = await this.transactionRepo.findOne({
+      where: { groupId },
+      order: { createdAt: 'DESC' },
+    })
+
+    if (!lastTransaction) {
+      this.logger.warn(`刪除操作失敗: 群組 ${groupId} 無任何記帳紀錄`)
+      return null
+    }
+
+    lastTransaction.payerName = payerName
+    await this.transactionRepo.save(lastTransaction)
+    this.logger.log(`已經更新最新交易的付款人: ID ${lastTransaction.id} (${lastTransaction.item})`)
+    return lastTransaction
+
+  }
+
   async getMonthlyStats(groupId: string) {
     this.logger.debug(`查詢群組 ${groupId} 的當月總計統計`)
     const now = new Date()

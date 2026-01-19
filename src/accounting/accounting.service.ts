@@ -58,6 +58,9 @@ export class AccountingService {
       await this.groupConfigRepo.save(config)
     }
 
+    const groupMembers = await this.groupMemberRepo.find({ where: { groupId } })
+    const nickNames = groupMembers.map(m => m.nickname)
+
     const currentCategories = config.categories
     const now = new Date()
     const todayStr = now.toISOString().split('T')[0]
@@ -110,6 +113,7 @@ export class AccountingService {
     const prompt = `
       當前參考時間: ${todayStr} (今天是 ${dayOfWeek})。
       訊息內容: "${message}"
+      可能出現的付款人: ${nickNames.join(", ")}。
 
       規則:
       1. 提取消費細節。
